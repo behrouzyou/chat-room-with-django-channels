@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Chat</title>
+</head>
+<body>
+<h1>WebSocket Test</h1>
+<input type="text" id="messageInput">
+<button id="sendButton">Send</button>
+
+<script>
+    const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/");
+
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+
+    socket.onopen = function() {console.log("WebSocket connected");};
+    socket.onmessage = function(event) {console.log("Received: ", event.data);};
+    socket.onclose = function() {console.log("WebSocket disconnected");};
+
+    sendButton.addEventListener("click", function(){
+        const message = messageInput.value;
+        socket.send(message);
+    });
+</script>
+</body>
+</html>
