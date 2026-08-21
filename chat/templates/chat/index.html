@@ -30,7 +30,7 @@
 
     sendButton.addEventListener("click", function(){
         const message = messageInput.value;
-        socket.send(JSON.stringify({message:message, username:"Amir"}));
+        socket.send(JSON.stringify({message:message}));
     });
 </script>
 </body>
