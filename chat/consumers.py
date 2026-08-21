@@ -1,5 +1,7 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
+from .models import Message
+from channels.db import database_sync_to_async
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -13,6 +15,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f"chat_{self.room_name}"
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+
+        history = await self.get_message_history(self.room_name)
+        await self.send(text_data=json.dumps({"reason":"history",
+                  "messages":[
+                      {
+                          "id": message.id,
+                          "message": message.content,
+                          "user_id": message.user.id,
+                          "username": message.user.username,
+                          "created_at": message.created_at.isoformat(),
+                      } for message in history]}))
+
         await self.channel_layer.group_send(self.room_group_name,
                                             {"type":"chat.user_joined", "username": user.username})
 
@@ -26,7 +40,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         message = data["message"]
         user = self.scope["user"]
-
+        await self.save_message(user=user, room=self.room_name, content=message)
         await self.channel_layer.group_send(self.room_group_name,
                      {"type":"chat.message", "message":message, "user_id":user.id, "username":user.username})
 
@@ -43,3 +57,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def chat_user_left(self, event):
         await self.send(text_data=json.dumps({"reason":"user_left", "username": event["username"]}))
+
+    @database_sync_to_async
+    def save_message(self, user, room, content):
+        return Message.objects.create(user=user, room=room, content=content)
+
+    @database_sync_to_async
+    def get_message_history(self, room):
+        return list(Message.objects.filter(room=room).select_related("user"))

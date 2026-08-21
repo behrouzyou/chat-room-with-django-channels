@@ -22,6 +22,15 @@
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
 
+        if (data.reason === "history") {
+            const messages = document.getElementById("messages");
+            data.messages.forEach(function(message){
+                const messageElement = document.createElement("p");
+                messageElement.textContent = message.username + ": " + message.message;
+                messages.appendChild(messageElement);
+            });
+        }
+
         if (data.reason === "message"){
             const messages = document.getElementById("messages");
             const messageElement = document.createElement("p");
