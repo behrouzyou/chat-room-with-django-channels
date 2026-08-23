@@ -1,58 +1,184 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Chat</title>
+    <title>Chat - {{ room_name }}</title>
+    <link rel="stylesheet" href="{% static 'chat/style.css' %}">
 </head>
 <body>
-<h1>Chat Room: {{ room_name }}</h1>
-<input type="text" id="messageInput">
-<button id="sendButton">Send</button>
 
-<div id="messages"></div>
+<div class="chat-container">
+    <div class="chat-header">
+        <h1>Room: {{ room_name }}</h1>
+        <span id="connectionStatus" class="status-offline">
+            Connecting...
+        </span>
+    </div>
+
+    <div id="messages"></div>
+
+    <div class="chat-input-area">
+        <input type="text" id="messageInput" placeholder="Write a message..." maxlength="2000" autocomplete="off">
+        <button id="sendButton" disabled>Send</button>
+    </div>
+
+</div>
 
 <script>
+    const currentUsername = "{{ request.user.username }}";
     const roomName = "{{ room_name }}";
     const socket = new WebSocket("ws://" + window.location.host + "/ws/chat/" + roomName + "/");
 
     const messageInput = document.getElementById("messageInput");
     const sendButton = document.getElementById("sendButton");
+    const messagesContainer = document.getElementById("messages");
+    const connectionStatus = document.getElementById("connectionStatus");
 
-    socket.onopen = function() {console.log("WebSocket connected");};
+    function formatTime(timestamp){
+        if (!timestamp) {return "";}
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+    }
+
+    function addMessage(message){
+        const messageElement = document.createElement("div");
+        const isOwnMessage = message.username === currentUsername;
+        messageElement.classList.add("message");
+
+        if (isOwnMessage){
+            messageElement.classList.add("message-own");
+        } else {
+            messageElement.classList.add("message-other");
+        }
+
+        const usernameElement = document.createElement("div");
+        usernameElement.classList.add("message-username");
+        usernameElement.textContent = message.username;
+
+        const contentElement = document.createElement("div");
+        contentElement.classList.add("message-content");
+        contentElement.textContent = message.message;
+
+        const timeElement = document.createElement("div");
+        timeElement.classList.add("message-time");
+        timeElement.textContent = formatTime(message.created_at);
+
+        messageElement.appendChild(usernameElement);
+        messageElement.appendChild(contentElement);
+        messageElement.appendChild(timeElement);
+
+        messagesContainer.appendChild(messageElement);
+
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function addSystemMessage(text){
+        const element = document.createElement("div");
+        element.classList.add("system-message");
+        element.textContent = text;
+        messagesContainer.appendChild(element);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function showError(text) {
+        const element = document.createElement("div");
+        element.classList.add("error-message");
+        element.textContent = text;
+        messagesContainer.appendChild(element);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    socket.onopen = function() {
+        console.log("Websocket connected");
+        connectionStatus.textContent = "Connected";
+        connectionStatus.className = "status-online";
+        sendButton.disabled = false;
+        messageInput.focus();
+    };
+
     socket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
+        let data;
+
+        try {
+            data = JSON.parse(event.data);
+        } catch (error) {
+            console.error("Invalid server response: ", event.data);
+            return
+        }
 
         if (data.reason === "history") {
-            const messages = document.getElementById("messages");
+            messagesContainer.innerHtml = "";
             data.messages.forEach(function(message){
-                const messageElement = document.createElement("p");
-                messageElement.textContent = message.username + ": " + message.message;
-                messages.appendChild(messageElement);
+                addMessage(message);
             });
+            return;
         }
 
         if (data.reason === "message"){
-            const messages = document.getElementById("messages");
-            const messageElement = document.createElement("p");
-            messageElement.textContent = data.username + ": " + data.message;
-            messages.appendChild(messageElement);
+            addMessage({
+                id: data.id,
+                message: data.message,
+                username: data.username,
+                user_id: data.user_id,
+                created_at: data.created_at
+            });
+            return;
         }
 
         if (data.reason === "user_joined"){
-            console.log(data.username + " joined the room");
+            if (data.username !== currentUsername){
+                addSystemMessage(data.username + " joined the room");
+            }
+            return;
         }
 
         if (data.reason === "user_left"){
-            console.log(data.username + " left the room");
+            addSystemMessage(data.username + " left the room");
+            return;
+        }
+
+        if (data.reason === "error") {
+            showError(data.message);
+            return;
         }
 
     };
-    socket.onclose = function() {console.log("WebSocket disconnected");};
+    socket.onclose = function() {
+        console.log("WebSocket disconnected");
+        connectionStatus.textContent = "Disconnected";
+        connectionStatus.className = "status-offline";
+        sendButton.disabled = true;
+    };
 
-    sendButton.addEventListener("click", function(){
-        const message = messageInput.value;
-        socket.send(JSON.stringify({message:message}));
+    socket.onerror = function(error){
+        console.error("Websocket error: ", error);
+    };
+
+    function sendMessage(){
+        const message = messageInput.value.trim();
+        if (!message){
+            return;
+        }
+
+        if (socket.readyState !== WebSocket.OPEN) {
+            showError("Connection is not available.");
+            return;
+        }
+        socket.send(JSON.stringify({message:message}))
+        messageInput.value = "";
+        messageInput.focus();
+    }
+
+    sendButton.addEventListener("click", sendMessage);
+
+    messageInput.addEventListener("keydown", function(event){
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();
+            sendMessage();
+        }
     });
+
 </script>
 </body>
 </html>
