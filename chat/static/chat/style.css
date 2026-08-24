@@ -154,3 +154,45 @@ body {
     background: #9ca3af;
     cursor: not-allowed;
 }
+
+#onlineUsersPanel {
+    padding: 12px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.online-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+#onlineUsers {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.online-user {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 5px 9px;
+
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+
+    font-size: 13px;
+}
+
+.online-dot {
+    width: 8px;
+    height: 8px;
+
+    background: #22c55e;
+
+    border-radius: 50%;
+}

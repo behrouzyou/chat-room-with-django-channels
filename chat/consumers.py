@@ -1,6 +1,6 @@
 from channels.generic.websocket import AsyncWebsocketConsumer
 import json
-from .models import Message
+from .models import Message, RoomMember
 from channels.db import database_sync_to_async
 
 
@@ -16,6 +16,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = f"chat_{self.room_name}"
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        await self.add_room_member(user=self.user, room=self.room_name)
+        online_users = await self.get_online_users(self.room_name)
 
         history = await self.get_message_history(self.room_name)
         await self.send(text_data=json.dumps({"reason":"history",
@@ -26,7 +28,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
                           "user_id": message.user.id,
                           "username": message.user.username,
                           "created_at": message.created_at.isoformat(),
-                      } for message in history]}))
+                      } for message in history],
+                  "online_users": [
+                      {
+                          "id": u.user.id,
+                          "username": u.user.username
+                      }
+                        for u in online_users
+                    ]
+            })
+        )
 
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -39,6 +50,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, close_code):
         if not hasattr(self, "room_group_name"): return
+
+        await self.remove_room_member(user=self.user, room=self.room_name)
 
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -136,3 +149,15 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_message_history(self, room):
         return list(Message.objects.filter(room=room).select_related("user").order_by("created_at"))
+
+    @database_sync_to_async
+    def add_room_member(self, user, room):
+        RoomMember.objects.update_or_create(user=user, room=room, defaults={})
+
+    @database_sync_to_async
+    def remove_room_member(self, user, room):
+        RoomMember.objects.filter(user=user, room=room).delete()
+
+    @database_sync_to_async
+    def get_online_users(self, room):
+        return list(RoomMember.objects.filter(room=room).select_related("user").order_by("user__username"))
