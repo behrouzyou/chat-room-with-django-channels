@@ -5,6 +5,48 @@ const connectionStatus = document.getElementById("connectionStatus");
 const onlineUsersContainer = document.getElementById("onlineUsers");
 const onlineCount = document.getElementById("onlineCount");
 
+let typingTimeout = null;
+let isTyping = false;
+const TYPING_STOP_DELAY = 2000;
+
+function startTyping(){
+    if (socket.readyState !== WebSocket.OPEN) {return;}
+
+    if (!isTyping) {
+        isTyping = true;
+        socket.send(JSON.stringify({type:"typing_start"}));
+    }
+
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(stopTyping, TYPING_STOP_DELAY);
+}
+
+function stopTyping(){
+    clearTimeout(typingTimeout);
+    typingTimeout = null;
+
+    if (!isTyping) {return;}
+
+    isTyping = false;
+
+    if (socket.readyState === WebSocket.OPEN) {socket.send(JSON.stringify({type:"typing_stop"}));}
+}
+
+const typingContainer = document.getElementById("typingIndicator");
+typingContainer.style.display = "none";
+typingContainer.textContent = "";
+
+function showTypingUser(username) {
+    typingContainer.textContent = username + " is typing...";
+    typingContainer.style.display = "block";
+}
+
+function hideTypingUser(){
+    typingContainer.textContent = "";
+    typingContainer.style.display = "none";
+}
+
+
 function renderOnlineUsers(users) {
     onlineUsersContainer.innerHTML = "";
     onlineCount.textContent = users.length + " online";
@@ -160,7 +202,14 @@ socket.onmessage = function(event) {
         });
 
         onlineCount.textContent = onlineUsersContainer.querySelectorAll(".online-user").length + " online";
+        hideTypingUser();
+        return;
+    }
 
+    if (data.reason === "typing"){
+        if(data.username === currentUsername) {return;}
+        if (data.action === "start") {showTypingUser(data.username);}
+        if (data.action === "stop") {hideTypingUser();}
         return;
     }
 
@@ -191,6 +240,7 @@ function sendMessage(){
         showError("Connection is not available.");
         return;
     }
+    stopTyping()
     socket.send(JSON.stringify({message:message}))
     messageInput.value = "";
     messageInput.focus();
@@ -203,4 +253,12 @@ messageInput.addEventListener("keydown", function(event){
         event.preventDefault();
         sendMessage();
     }
+});
+
+messageInput.addEventListener("input", function(){
+    if (messageInput.value.trim() === ""){
+        stopTyping();
+        return;
+    }
+    startTyping();
 });

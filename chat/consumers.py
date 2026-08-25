@@ -72,6 +72,31 @@ class ChatConsumer(AsyncWebsocketConsumer):
             await self.send_error("Invalid JSON.")
             return
 
+        if data.get("type") == "typing_start":
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "chat.typing",
+                    "action": "start",
+                    "username": self.user.username,
+                    "user_id": self.user.id
+                }
+            )
+            return
+
+        if data.get("type") == "typing_stop":
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "chat.typing",
+                    "action": "stop",
+                    "username": self.user.username,
+                    "user_id": self.user.id
+                }
+            )
+            return
+
+
         if "message" not in data:
             await self.send_error("Message field is required.")
             return
@@ -141,6 +166,14 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "message": message,
             })
         )
+
+    async def chat_typing(self, event):
+        await self.send(text_data=json.dumps({
+            "reason": "typing",
+            "action": event["action"],
+            "username": event["username"],
+            "user_id": event["user_id"]
+        }))
 
     @database_sync_to_async
     def save_message(self, user, room, content):
