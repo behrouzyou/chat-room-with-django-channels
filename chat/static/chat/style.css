@@ -191,8 +191,14 @@ body {
 .online-dot {
     width: 8px;
     height: 8px;
-
     background: #22c55e;
-
     border-radius: 50%;
+}
+
+#typingIndicator {
+    min-height: 22px;
+    padding: 4px 20px;
+    font-size: 13px;
+    color: #6b7280;
+    font-style: italic;
 }
